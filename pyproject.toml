@@ -1,0 +1,20 @@
+[project]
+name = "online-cinema"
+version = "0.1.0"
+description = "Online Cinema"
+authors = [
+    {name = "Sergiy Yurov",email = "urovsergej10@gmail.com"}
+]
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "python-dotenv (>=1.1.1,<2.0.0)",
+    "sqlalchemy (>=2.0.41,<3.0.0)",
+    "asyncpg (>=0.30.0,<0.31.0)",
+     "uvicorn[standard]",
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
