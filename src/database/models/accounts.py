@@ -11,6 +11,7 @@ from src.database.validators import accounts as validators
 from src.security.passwords import hash_password, verify_password
 from src.security.utils import generate_secure_token
 
+
 class UserGroupEnum(str, enum.Enum):
     USER = "user"
     MODERATOR = "moderator"
@@ -43,7 +44,8 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
     group_id: Mapped[int] = mapped_column(ForeignKey("user_groups.id", on_delete="CASCADE"), nullable=False)
     group: Mapped["UserGroup"] = relationship(UserGroup, back_populates="users")
