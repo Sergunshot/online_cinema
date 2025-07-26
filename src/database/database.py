@@ -3,10 +3,13 @@ from contextlib import contextmanager
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 
-from src.config.settings import settings
+from src.config.dependencies import get_settings
+
 from src.database.models.base import Base
 
-DATABASE_URL = settings.PATH_TO_DB
+settings = get_settings()
+# DATABASE_URL = settings.PATH_TO_DB
+DATABASE_URL = "sqlite:///./src/database/cinema.db"
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 connection = engine.connect()
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=connection)
