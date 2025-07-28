@@ -6,7 +6,7 @@ from starlette import status
 from config.settings import TestingSettings, Settings, BaseAppSettings
 from exceptions import BaseSecurityError
 from notifications import EmailSenderInterface, EmailSender
-from security.http import get_token
+from security import get_token
 from security.interfaces import JWTAuthManagerInterface
 from security.token_manager import JWTAuthManager
 from storages import S3StorageInterface, S3StorageClient

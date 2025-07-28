@@ -1,2 +1,2 @@
 from storages.interfaces import S3StorageInterface
-from storages.s3 import S3StorageClient
+from storages.S3 import S3StorageClient
