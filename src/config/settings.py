@@ -9,7 +9,7 @@ load_dotenv()
 
 class BaseAppSettings(BaseSettings):
     BASE_DIR: Path = Path(__file__).parent.parent
-    PATH_TO_DB: str = str(BASE_DIR / "src" / "database" / "cinema.db")
+    PATH_TO_DB: str = str(BASE_DIR / "database" / "cinema.db")
 
     PATH_TO_EMAIL_TEMPLATES_DIR: str = str(BASE_DIR / "notifications" / "templates")
     ACTIVATION_EMAIL_TEMPLATE_NAME: str = "activation_request.html"
