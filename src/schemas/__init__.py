@@ -11,7 +11,7 @@ from .accounts import (
     TokenRefreshRequestSchema,
     TokenRefreshResponseSchema,
 )
-# from .profiles import ProfileRequestSchema, ProfileResponseSchema
+from .profile import ProfileCreateSchema, ProfileResponseSchema
 # from .movies import (
 #     GenreSchema,
 #     DirectorSchema,
