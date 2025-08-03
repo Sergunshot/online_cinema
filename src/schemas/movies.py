@@ -39,7 +39,6 @@ class CommentSchema(BaseModel):
     id: int
     user_id: int
     comment: str
-    answers: List[AnswerCommentSchema] = []
 
     model_config = ConfigDict(from_attributes=True)
 
