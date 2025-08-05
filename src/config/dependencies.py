@@ -82,6 +82,7 @@ def get_accounts_email_notificator(
         activation_complete_email_template_name=settings.ACTIVATION_COMPLETE_EMAIL_TEMPLATE_NAME,
         password_email_template_name=settings.PASSWORD_RESET_TEMPLATE_NAME,
         password_complete_email_template_name=settings.PASSWORD_RESET_COMPLETE_TEMPLATE_NAME,
+        password_change_name=settings.PASSWORD_CHANGE_NAME,
     )
 
 
@@ -110,7 +111,7 @@ def get_s3_storage_client(
     )
 
 
-def get_current_user_id(
+async def get_current_user_id(
     token: str = Depends(get_token),
     jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager),
 ) -> int:
