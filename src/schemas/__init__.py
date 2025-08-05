@@ -32,3 +32,9 @@ from .cart import (
     CartResponseSchema,
     CartCreateSchema,
 )
+from .orders import (
+    OrderItemResponseSchema,
+    OrderResponseSchema,
+    OrderWithMoviesResponseSchema,
+    OrderListResponseSchema
+)
