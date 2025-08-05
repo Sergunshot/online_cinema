@@ -24,12 +24,14 @@ class GenderEnum(str, enum.Enum):
 
 
 class UserGroup(Base):
-    __tablename__ = "usergroups"
+    __tablename__ = "user_groups"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name: Mapped[UserGroupEnum] = mapped_column(
         Enum(UserGroupEnum), unique=True, nullable=False
     )
+
+    users = relationship("User", back_populates="group")
 
     def __repr__(self) -> str:
         return f"<UserGroup (id: {self.id}, name: {self.name}>"
@@ -47,12 +49,12 @@ class User(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
-    group_id: Mapped[int] = mapped_column(ForeignKey("user_groups.id", on_delete="CASCADE"), nullable=False)
+    group_id: Mapped[int] = mapped_column(ForeignKey("user_groups.id", ondelete="CASCADE"), nullable=False)
     group: Mapped["UserGroup"] = relationship(UserGroup, back_populates="users")
-    profile: Mapped["UserProfile"] = relationship("UserProfile", back_populates="users")
-    activation_token: Mapped["ActivationToken"] = relationship("ActivationToken", back_populates="users")
-    password_reset_token: Mapped["PasswordResetToken"] = relationship("PasswordResetToken", back_populates="users")
-    refresh_token: Mapped["RefreshToken"] = relationship("RefreshToken", back_populates="users")
+    profile: Mapped["UserProfile"] = relationship("UserProfile", back_populates="user", uselist=False)
+    activation_token: Mapped["ActivationToken"] = relationship("ActivationToken", back_populates="user")
+    password_reset_token: Mapped["PasswordResetToken"] = relationship("PasswordResetToken", back_populates="user")
+    refresh_tokens: Mapped["RefreshToken"] = relationship("RefreshToken", back_populates="user")
 
     ratings = relationship("Rating", back_populates="user")
     comments = relationship("Comment", back_populates="user")
