@@ -1,6 +1,6 @@
 import datetime
 from typing import List
-from sqlalchemy import ForeignKey, UniqueConstraint
+from sqlalchemy import ForeignKey, UniqueConstraint, Integer
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base
@@ -35,3 +35,15 @@ class CartItem(Base):
 
     def __repr__(self) -> str:
         return f"<CartItem(id={self.id}, cart_id={self.cart_id}, movie_id={self.movie_id})>"
+
+
+class Purchased(Base):
+    __tablename__ = "purchased"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=False
+    )
+    movie_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("movies.id"), nullable=False
+    )
