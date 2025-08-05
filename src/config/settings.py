@@ -16,6 +16,7 @@ class BaseAppSettings(BaseSettings):
     ACTIVATION_COMPLETE_EMAIL_TEMPLATE_NAME: str = "activation_complete.html"
     PASSWORD_RESET_TEMPLATE_NAME: str = "password_reset_request.html"
     PASSWORD_RESET_COMPLETE_TEMPLATE_NAME: str = "password_reset_complete.html"
+    PASSWORD_CHANGE_NAME: str = "password_change.html"
 
     LOGIN_TIME_DAYS: int = 7
 
@@ -26,11 +27,11 @@ class BaseAppSettings(BaseSettings):
     EMAIL_USE_TLS: bool = os.getenv("EMAIL_USE_TLS", "False").lower() == "true"
     MAILHOG_API_PORT: int = os.getenv("MAILHOG_API_PORT", 8025)
 
-    S3_STORAGE_HOST: str = os.getenv("MINIO_HOST", "minio-cinema")
+    S3_STORAGE_HOST: str = os.getenv("MINIO_HOST", "localhost")
     S3_STORAGE_PORT: int = os.getenv("MINIO_PORT", 9000)
     S3_STORAGE_ACCESS_KEY: str = os.getenv("MINIO_ROOT_USER", "minioadmin")
-    S3_STORAGE_SECRET_KEY: str = os.getenv("MINIO_ROOT_PASSWORD", "some_password")
-    S3_BUCKET_NAME: str = os.getenv("MINIO_STORAGE", "cinema-storage")
+    S3_STORAGE_SECRET_KEY: str = os.getenv("MINIO_ROOT_PASSWORD", "minioadmin")
+    S3_BUCKET_NAME: str = os.getenv("MINIO_STORAGE", "online-cinema-bucket")
 
     @property
     def S3_STORAGE_ENDPOINT(self) -> str:
@@ -45,6 +46,12 @@ class BaseAppSettings(BaseSettings):
 
 
 class Settings(BaseAppSettings):
+    POSTGRES_USER: str = os.getenv("POSTGRES_USER", "test_user")
+    POSTGRES_PASSWORD: str = os.getenv("POSTGRES_PASSWORD", "test_password")
+    POSTGRES_HOST: str = os.getenv("POSTGRES_HOST", "test_host")
+    POSTGRES_DB_PORT: int = int(os.getenv("POSTGRES_DB_PORT", 5432))
+    POSTGRES_DB: str = os.getenv("POSTGRES_DB", "test_db")
+
     SECRET_KEY_ACCESS: str = os.getenv("SECRET_KEY_ACCESS", os.urandom(32))
     SECRET_KEY_REFRESH: str = os.getenv("SECRET_KEY_REFRESH", os.urandom(32))
     JWT_SIGNING_ALGORITHM: str = os.getenv("JWT_SIGNING_ALGORITHM", "HS256")

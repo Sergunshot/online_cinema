@@ -23,6 +23,7 @@ class EmailSender(EmailSenderInterface):
         activation_complete_email_template_name: str,
         password_email_template_name: str,
         password_complete_email_template_name: str,
+        password_change_name: str
     ):
         self._hostname = hostname
         self._port = port
@@ -37,6 +38,7 @@ class EmailSender(EmailSenderInterface):
         self._password_complete_email_template_name = (
             password_complete_email_template_name
         )
+        self._password_change = password_change_name
 
         self._env = Environment(loader=FileSystemLoader(template_dir))
 
@@ -126,4 +128,27 @@ class EmailSender(EmailSenderInterface):
         template = self._env.get_template(self._password_complete_email_template_name)
         html_content = template.render(email=email, login_link=login_link)
         subject = "Your Password Has Been Successfully Reset"
+        await self._send_email(email, subject, html_content)
+
+    async def send_password_change(self, email: str) -> None:
+        template = self._env.get_template(self._password_change)
+        html_content = template.render(email=email)
+
+        subject = "Password Successfully Changed"
+        await self._send_email(email, subject, html_content)
+
+    async def send_remove_movie(
+            self, email: str, movie_name: str, cart_id: int
+    ) -> None:
+        html_content = f"""
+            <p>Movie "{movie_name}" removed from cart with ID: {cart_id}</p>
+        """
+        subject = f"{movie_name} removed from cart with id: {cart_id}"
+        await self._send_email(email, subject, html_content)
+
+    async def send_comment_answer(self, email: str, answer_text: str) -> None:
+        html_content = f"""
+        <p>You have got answer on your comment: {answer_text}</p>
+        """
+        subject = "New Reply to Your Comment."
         await self._send_email(email, subject, html_content)

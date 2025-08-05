@@ -46,3 +46,17 @@ class EmailSenderInterface(ABC):
             login_link (str): The login link to include in the email.
         """
         pass
+
+    @abstractmethod
+    async def send_password_change(self, email: str) -> None:
+        pass
+
+    @abstractmethod
+    async def send_remove_movie(
+            self, email: str, movie_name: str, cart_id: int
+    ) -> None:
+        pass
+
+    @abstractmethod
+    async def send_comment_answer(self, email: str, answer_text: str) -> None:
+        pass
