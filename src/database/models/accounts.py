@@ -6,7 +6,7 @@ from pydantic import validators
 from sqlalchemy import Integer, Enum, String, DateTime, func, Boolean, ForeignKey, Date, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
 
-from .base import Base
+from . import Base
 from database.validators import accounts as validators
 from security.passwords import hash_password, verify_password
 from security.utils import generate_secure_token

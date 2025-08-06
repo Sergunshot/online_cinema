@@ -28,3 +28,5 @@ from .movies import (
     Favorite,
     Rating,
 )
+from .orders import OrderItemModel, OrderModel
+from .payments import PaymentModel, PaymentItemModel

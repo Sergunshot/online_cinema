@@ -1,4 +1,4 @@
-from .models.base import Base
+from .models import Base
 from .models.accounts import (
     UserGroupEnum,
     GenderEnum,
