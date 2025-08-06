@@ -6,7 +6,7 @@ MIGRATIONS_DIR="/usr/src/fastapi/database/migrations/versions"
 
 echo "Checking for changes before generating a migration..."
 
-# Ensure the migrations folder exists
+# Ensure the versions folder exists
 if [ ! -d "$MIGRATIONS_DIR" ]; then
     echo "Migrations folder does not exist. Creating it..."
     mkdir -p "$MIGRATIONS_DIR"
@@ -21,11 +21,11 @@ if ! psql -h "$POSTGRES_HOST" -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "\dt" | g
     # Check if there are existing migration files
     if [ -z "$(ls -A "$MIGRATIONS_DIR")" ]; then
         echo "No migration files found. Generating initial migration..."
-        alembic -c $ALEMBIC_CONFIG revision --autogenerate -m "initial migration"
+        migrations -c $ALEMBIC_CONFIG revision --autogenerate -m "initial migration"
     fi
 
     echo "Applying all migrations..."
-    alembic -c $ALEMBIC_CONFIG upgrade head
+    migrations -c $ALEMBIC_CONFIG upgrade head
 
     # Run database saver script only if alembic_version table was just created
     echo "Running database saver script..."
@@ -36,7 +36,7 @@ if ! psql -h "$POSTGRES_HOST" -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "\dt" | g
 fi
 
 # Generate temporary migration
-if ! alembic -c $ALEMBIC_CONFIG revision --autogenerate -m "temp_migration"; then
+if ! migrations -c $ALEMBIC_CONFIG revision --autogenerate -m "temp_migration"; then
     echo "Error generating migration. Exiting."
     exit 1
 fi
@@ -54,7 +54,7 @@ if grep -qE '^\s*pass\s*$' "$LAST_MIGRATION"; then
     rm "$LAST_MIGRATION"
 else
     echo "Changes detected. Applying migration."
-    alembic -c $ALEMBIC_CONFIG upgrade head
+    migrations -c $ALEMBIC_CONFIG upgrade head
 fi
 
 # Run database saver script
