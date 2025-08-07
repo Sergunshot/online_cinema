@@ -63,7 +63,7 @@ class User(Base):
     favorites = relationship("Favorite", back_populates="user")
     cart = relationship("Cart", back_populates="user")
     orders: Mapped[List["Order"]] = relationship("Order", back_populates="user")
-    payments: Mapped[List["Payment"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    payments: Mapped[List["Payment"]] = relationship("Payment", back_populates="user")
 
     def __repr__(self):
         return f"<User(id={self.id}, email={self.email}, is_active={self.is_active})>"
