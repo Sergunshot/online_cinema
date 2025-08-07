@@ -39,6 +39,7 @@ class CartItem(Base):
 
 class Purchased(Base):
     __tablename__ = "purchased"
+    __table_args__ = (UniqueConstraint("cart_id", "movie_id", name="unique_cart_movie"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(
@@ -47,3 +48,6 @@ class Purchased(Base):
     movie_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("movies.id"), nullable=False
     )
+
+    def __repr__(self) -> str:
+        return f"<CartItem(id={self.id}, cart_id={self.cart_id}, movie_id={self.movie_id})>"

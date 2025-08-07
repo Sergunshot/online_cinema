@@ -13,8 +13,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import mapped_column, Mapped, relationship
 
-from .base import Base
-from .accounts import User
+from . import Base, User
 
 MovieGenres = Table(
     "movie_genres",
@@ -165,6 +164,9 @@ class Movie(Base):
         "Star", secondary=MovieStars, back_populates="movies"
     )
     cart_items = relationship("CartItem", back_populates="movie")
+    order_items: Mapped[list["OrderItem"]] = relationship(
+        "OrderItem", back_populates="movie"
+    )
 
     __table_args__ = (UniqueConstraint("name", "year", "time", name="unique_movie"),)
 
