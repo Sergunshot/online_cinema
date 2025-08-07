@@ -9,7 +9,7 @@ from .base import Base
 from typing import List
 
 
-class PaymentStatus(enum.Enum):
+class PaymentStatusEnum(enum.Enum):
     successful = "successful"
     canceled = "canceled"
     refunded = "refunded"

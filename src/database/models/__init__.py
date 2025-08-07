@@ -29,4 +29,4 @@ from .movies import (
     Rating,
 )
 from .orders import OrderItem, Order
-from .payments import Payment, PaymentItem
+from .payments import Payment, PaymentItem, PaymentStatusEnum
