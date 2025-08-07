@@ -120,6 +120,9 @@ async def get_current_user_id(
     """
     try:
         payload = jwt_manager.decode_access_token(token)
-        return payload.get("user_id")
+        user_id = int(payload.get("user_id"))
+        if user_id is None:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token: user_id missing")
+        return user_id
     except BaseSecurityError as e:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e))
