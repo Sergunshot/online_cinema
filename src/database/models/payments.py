@@ -15,7 +15,7 @@ class PaymentStatus(enum.Enum):
     refunded = "refunded"
 
 
-class PaymentItemModel(Base):
+class PaymentItem(Base):
     __tablename__ = "payment_items"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -32,7 +32,7 @@ class PaymentItemModel(Base):
         )
 
 
-class PaymentModel(Base):
+class Payment(Base):
     __tablename__ = "payments"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -44,7 +44,7 @@ class PaymentModel(Base):
     )
     amount: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
     external_payment_id: Mapped[str] = mapped_column(String(255), nullable=True)
-    order: Mapped["Order"] = relationship("OrderModel", back_populates="payments")
+    order: Mapped["Order"] = relationship("Order", back_populates="payments")
     user: Mapped["User"] = relationship(back_populates="payments")
     payment_items: Mapped[List["PaymentItem"]] = relationship("PaymentItem", back_populates="payment")
 
