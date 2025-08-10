@@ -48,6 +48,10 @@ class BaseAppSettings(BaseSettings):
         "CELERY_RESULT_BACKEND", "redis://127.0.0.1:6379/0"
     )
 
+    STRIPE_SECRET_KEY: str = os.environ.get("STRIPE_SECRET_KEY")
+    STRIPE_WEBHOOK_SECRET: str = os.environ.get("STRIPE_WEBHOOK_SECRET")
+    STRIPE_CURRENCY: str = os.environ.get("STRIPE_CURRENCY")
+
 
 class Settings(BaseAppSettings):
     POSTGRES_USER: str = os.getenv("POSTGRES_USER", "test_user")
