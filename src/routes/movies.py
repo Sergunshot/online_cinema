@@ -1,3 +1,5 @@
+from typing import List
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status, BackgroundTasks
 from sqlalchemy import or_, func, and_
 from sqlalchemy.exc import IntegrityError
@@ -8,7 +10,7 @@ from sqlalchemy.orm import selectinload, joinedload
 
 from config import get_current_user_id, get_accounts_email_notificator
 from database import User, UserGroupEnum
-from database.models import Purchased
+from database.models import Purchased, OrderItem
 from notifications import EmailSenderInterface
 from src.database import get_db
 from src.database.models.movies import (
@@ -20,7 +22,7 @@ from src.database.models.movies import (
 
 from src.schemas.movies import (
     MovieListItemSchema,
-    MovieListResponseSchema, MovieDetailSchema, MovieCreateSchema, MovieUpdateSchema,
+    MovieListResponseSchema, MovieDetailSchema, MovieCreateSchema, MovieUpdateSchema, CommentSchema,
 )
 
 router = APIRouter()
@@ -69,7 +71,15 @@ async def get_movie_list(
     """
     offset = (page - 1) * per_page
 
-    query = db.query(Movie).order_by()
+    query = (
+        select(Movie)
+        .options(
+            selectinload(Movie.genres),
+            selectinload(Movie.directors),
+            selectinload(Movie.stars),
+        )
+        .order_by()
+    )
 
     order_by = Movie.default_order_by()
     if order_by:
@@ -510,7 +520,11 @@ async def get_movies_by_genre(
     genre_name: str,
     db: AsyncSession = Depends(get_db),
 ):
-    stmt = select(Genre).options(selectinload(Genre.movies)).where(Genre.name.ilike(genre_name))
+    stmt = (
+        select(Genre)
+        .options(selectinload(Genre.movies))
+        .where(Genre.name.ilike(genre_name))
+    )
     result = await db.execute(stmt)
     genre = result.scalar_one_or_none()
     if not genre:
@@ -558,6 +572,7 @@ async def get_movie_by_id(
             joinedload(Movie.stars),
             joinedload(Movie.certification),
             joinedload(Movie.comments),
+            joinedload(Movie.comments).options(selectinload(Comment.answers)),
         )
         .where(Movie.id == movie_id)
     )
@@ -655,13 +670,13 @@ async def delete_movie(
             status_code=404, detail="Movie with the given ID was not found."
         )
 
-    stmt_purchased = select(Purchased).where(Purchased.movie_id == movie_id)
-    result_purchased = await db.execute(stmt_purchased)
-    purchased = result_purchased.scalar_one_or_none()
-    if purchased:
+    result = await db.execute(select(OrderItem).filter(OrderItem.movie_id == movie_id))
+    order_items_count = len(result.scalars().all())
+
+    if order_items_count > 0:
         raise HTTPException(
-            status_code=403,
-            detail="Cannot delete the movie because it has been purchased by at least one user.",
+            status_code=400,
+            detail="Cannot delete movie, it has been purchased by at least one user.",
         )
 
     await db.delete(movie)
@@ -714,7 +729,9 @@ async def dislike_movie(
     if not movie:
         raise HTTPException(status_code=404, detail="Movie not found")
 
-    stmt_dislike = select(Dislike).where(Dislike.movie_id == movie_id, Dislike.user_id == user_id)
+    stmt_dislike = select(Dislike).where(
+        Dislike.movie_id == movie_id, Dislike.user_id == user_id
+    )
     result_dislike = await db.execute(stmt_dislike)
     existing_dislike = result_dislike.scalar_one_or_none()
     if existing_dislike:
@@ -730,7 +747,8 @@ async def dislike_movie(
 
 @router.post(
     "/{movie_id}/comments",
-    description="Addd a comment on a movie",
+    description="Get the comments for a specific movie by ID",
+    response_model=List[CommentSchema],
 )
 async def create_comment(
     movie_id: int,
@@ -759,7 +777,11 @@ async def create_comment(
     description="Get the comments for a specific movie by ID",
 )
 async def get_comments(movie_id: int, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Comment).filter_by(movie_id=movie_id))
+    result = await db.execute(
+        select(Comment)
+        .options(selectinload(Comment.answers))
+        .filter_by(movie_id=movie_id)
+    )
     comments = result.scalars().all()
     if not comments:
         raise HTTPException(
