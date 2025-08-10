@@ -204,6 +204,9 @@ class Comment(Base):
 
     user: Mapped[User] = relationship("User", back_populates="comments")
     movie: Mapped[Movie] = relationship("Movie", back_populates="comments")
+    answers: Mapped[list["AnswerComment"]] = relationship(
+        "AnswerComment", back_populates="comment", cascade="all, delete-orphan"
+    )
 
 
 class AnswerComment(Base):
@@ -213,6 +216,9 @@ class AnswerComment(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
     comment_id: Mapped[int] = mapped_column(ForeignKey("comments.id"), nullable=False)
     text: Mapped[str] = mapped_column(Text, nullable=False)
+
+    comment: Mapped["Comment"] = relationship("Comment", back_populates="answers")
+    user: Mapped[User] = relationship("User")
 
 
 class Favorite(Base):
