@@ -1,0 +1,144 @@
+services:
+  db:
+    image: 'postgres:latest'
+    container_name: postgres_cinema
+    env_file:
+      - .env
+    environment:
+      - ENVIRONMENT=docker
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+      - postgres_cinema_data:/var/lib/postgresql/data/
+    networks:
+      - cinema_network
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U $POSTGRES_USER -d $POSTGRES_DB -h 127.0.0.1 || exit 1" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: pgadmin_cinema
+    ports:
+      - "3333:80"
+    env_file:
+      - .env
+    environment:
+      - ENVIRONMENT=docker
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - pgadmin_cinema_data:/var/lib/pgadmin
+    networks:
+      - cinema_network
+
+  web:
+    build: .
+    container_name: backend_cinema
+    command: [ "/bin/bash", "/commands/run_web_server_dev.sh" ]
+    env_file:
+      - .env
+    environment:
+      - LOG_LEVEL=debug
+      - PYTHONPATH=/usr/src/fastapi
+      - WATCHFILES_FORCE_POLLING=true
+      - ENVIRONMENT=docker
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    volumes:
+      - ./src:/usr/src/fastapi
+    networks:
+      - cinema_network
+
+  migrator:
+    build: .
+    container_name: alembic_migrator_cinema
+    command: ["/bin/bash", "/commands/run_migration.sh"]
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./src:/usr/src/fastapi
+    env_file:
+      - .env
+    environment:
+      - PYTHONPATH=/usr/src/fastapi
+      - ENVIRONMENT=docker
+    networks:
+      - cinema_network
+
+  mailhog:
+    build:
+      context: .
+      dockerfile: ./docker/mailhog/Dockerfile
+    container_name: mailhog_cinema
+    command: ["/bin/bash", "-c", "/commands/setup_mailhog_auth.sh && ~/go/bin/MailHog"]
+    ports:
+      - "8025:8025"
+      - "1025:1025"
+    env_file:
+      - .env
+    environment:
+      MH_AUTH_FILE: /mailhog.auth
+      ENVIRONMENT: docker
+    networks:
+      - cinema_network
+
+  minio:
+    image: minio/minio:latest
+    container_name: minio-cinema
+    command: server --console-address ":9001" /data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    env_file:
+      - .env
+    environment:
+      - ENVIRONMENT=docker
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:9000/minio/health/live" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - cinema_network
+
+  minio_mc:
+    build:
+      context: .
+      dockerfile: docker/minio_mc/Dockerfile
+    container_name: minio_mc_cinema
+    command: ["/bin/sh", "-c", "/commands/setup_minio.sh"]
+    depends_on:
+      minio:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      - ENVIRONMENT=docker
+    networks:
+      - cinema_network
+
+volumes:
+  postgres_cinema_data:
+    driver: local
+  pgadmin_cinema_data:
+    driver: local
+  minio_data:
+    driver: local
+
+networks:
+  cinema_network:
+    driver: bridge
