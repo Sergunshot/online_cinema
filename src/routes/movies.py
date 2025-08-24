@@ -10,17 +10,17 @@ from sqlalchemy.orm import selectinload, joinedload
 
 from config import get_current_user_id, get_accounts_email_notificator
 from database import User, UserGroupEnum
-from database.models import Purchased, OrderItem
+from database.models import OrderItem
 from notifications import EmailSenderInterface
-from src.database import get_db
-from src.database.models.movies import (
+from database import get_db
+from database.models.movies import (
     Movie,
     Genre,
     Director,
     Star, Certification, Favorite, Like, Dislike, Comment, AnswerComment, Rating,
 )
 
-from src.schemas.movies import (
+from schemas.movies import (
     MovieListItemSchema,
     MovieListResponseSchema, MovieDetailSchema, MovieCreateSchema, MovieUpdateSchema, CommentSchema,
 )

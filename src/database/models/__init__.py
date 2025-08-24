@@ -11,7 +11,7 @@ from .accounts import (
     PasswordResetToken,
     RefreshToken,
 )
-from .cart import Cart, CartItem, Purchased
+from .cart import Cart, CartItem
 from .movies import (
     MovieGenres,
     MovieDirectors,
