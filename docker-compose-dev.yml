@@ -63,7 +63,7 @@ services:
   migrator:
     build: .
     container_name: alembic_migrator_cinema
-    command: ["/bin/bash", "/commands/run_migration.sh"]
+    command: ["/bin/bash", "-lc", "/commands/run_migration.sh"]
     depends_on:
       db:
         condition: service_healthy
@@ -82,17 +82,21 @@ services:
       context: .
       dockerfile: ./docker/mailhog/Dockerfile
     container_name: mailhog_cinema
-    command: ["/bin/bash", "-c", "/commands/setup_mailhog_auth.sh && ~/go/bin/MailHog"]
     ports:
       - "8025:8025"
       - "1025:1025"
     env_file:
       - .env
     environment:
-      MH_AUTH_FILE: /mailhog.auth
-      ENVIRONMENT: docker
+      MAILHOG_USER: ${MAILHOG_USER:-admin}
+      MAILHOG_PASSWORD: ${MAILHOG_PASSWORD:-secret}
     networks:
       - cinema_network
+    healthcheck:
+      test: [ "CMD", "wget", "-qO-", "http://localhost:8025/" ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
   minio:
     image: minio/minio:latest

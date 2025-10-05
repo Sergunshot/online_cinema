@@ -6,7 +6,11 @@ from sqlalchemy import Integer, ForeignKey, DateTime, Numeric, Enum, String, fun
 from sqlalchemy.orm import relationship, Mapped, mapped_column
 
 from .base import Base
-from typing import List
+from typing import List, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .accounts import User
+    from .orders import Order, OrderItem
 
 
 class PaymentStatusEnum(enum.Enum):

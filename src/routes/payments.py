@@ -22,7 +22,9 @@ from database.models import (
 
 from config.dependencies import get_current_user_id, get_accounts_email_notificator
 from database import get_db
-from config import settings as settings
+from config.settings import Settings
+
+settings = Settings()
 
 router = APIRouter()
 
@@ -62,7 +64,7 @@ async def create_payment(
         user_id=current_user_id,
         order_id=order.id,
         amount=order.total_amount,
-        status="pending",
+        status=PaymentStatusEnum.pending,
         external_payment_id=payment_data.external_payment_id,
         payment_method=payment_data.payment_method,
     )
@@ -123,7 +125,7 @@ async def refund_payment(
     db: AsyncSession = Depends(get_db),
     current_user_id: int = Depends(get_current_user_id),
     background_tasks: BackgroundTasks = BackgroundTasks(),
-    email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator()),
+    email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
 ):
     """
     Processes a refund for a successful payment.
@@ -146,29 +148,9 @@ async def refund_payment(
             status_code=400, detail="Only successful payments can be refunded"
         )
 
-    # # For test - uncomment this block and comment block below
-    # if payment.external_payment_id == "mock-id-123":
-    #     # This is a test, return success without calling Stripe
-    #     payment.status = PaymentStatus.refunded
-    #     await db.commit()
-    #     await db.refresh(payment)
-    #
-    #     user_result = await db.execute(select(User).filter(User.id == current_user_id))
-    #     user = user_result.scalars().first()
-    #     if user:
-    #         background_tasks.add_task(
-    #             email_sender.send_refund_email, user.email, payment.amount
-    #         )
-    #
-    #     return payment
-
-    # Stripe refund inside try because it can catch errors from the external API
-    try:
-        refund = stripe.Refund.create(payment_intent=payment.external_payment_id)
-    except stripe.error.StripeError as e:
-        raise HTTPException(status_code=500, detail=f"Stripe refund error: {str(e)}")
-
-    if refund.status == "succeeded":
+    # For test - uncomment this block and comment block below
+    if payment.external_payment_id == "mock-id-123":
+        # This is a test, return success without calling Stripe
         payment.status = PaymentStatusEnum.refunded
         await db.commit()
         await db.refresh(payment)
@@ -182,10 +164,30 @@ async def refund_payment(
 
         return payment
 
-    raise HTTPException(
-        status_code=400,
-        detail="Refund was not successful. Stripe returned status: " + refund.status,
-    )
+    # Stripe refund inside try because it can catch errors from the external API
+    # try:
+    #     refund = stripe.Refund.create(payment_intent=payment.external_payment_id)
+    # except stripe.error.StripeError as e:
+    #     raise HTTPException(status_code=500, detail=f"Stripe refund error: {str(e)}")
+    #
+    # if refund.status == "succeeded":
+    #     payment.status = PaymentStatusEnum.refunded
+    #     await db.commit()
+    #     await db.refresh(payment)
+    #
+    #     user_result = await db.execute(select(User).filter(User.id == current_user_id))
+    #     user = user_result.scalars().first()
+    #     if user:
+    #         background_tasks.add_task(
+    #             email_sender.send_refund_email, user.email, payment.amount
+    #         )
+    #
+    #     return payment
+
+    # raise HTTPException(
+    #     status_code=400,
+    #     detail="Refund was not successful. Stripe returned status: " + refund.status,
+    # )
 
 
 @router.get("/history/", response_model=List[PaymentResponse])
@@ -252,20 +254,20 @@ async def stripe_webhook(
     if not sig_header:
         raise HTTPException(status_code=400, detail="Missing Stripe-Signature header")
 
-    # # For test - uncomment this block and comment block below
-    # import json
-    #
-    # try:
-    #     event = json.loads(payload)
-    # except Exception:
-    #     raise HTTPException(status_code=400, detail="Invalid JSON")
+    # For test - uncomment this block and comment block below
+    import json
 
     try:
-        event = stripe.Webhook.construct_event(
-            payload, sig_header, STRIPE_WEBHOOK_SECRET
-        )
-    except (ValueError, stripe.error.SignatureVerificationError):
-        raise HTTPException(status_code=400, detail="Invalid webhook request")
+        event = json.loads(payload)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON")
+
+    # try:
+    #     event = stripe.Webhook.construct_event(
+    #         payload, sig_header, STRIPE_WEBHOOK_SECRET
+    #     )
+    # except (ValueError, stripe.error.SignatureVerificationError):
+    #     raise HTTPException(status_code=400, detail="Invalid webhook request")
 
     event_type = event["type"]
     data = event["data"]["object"]

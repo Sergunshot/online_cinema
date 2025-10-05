@@ -21,7 +21,7 @@ services:
   migrator:
     build: .
     container_name: alembic_migrator_cinema
-    command: ["/bin/bash", "/commands/run_migration.sh"]
+    command: [ "/bin/bash", "-lc", "/commands/run_migration.sh" ]
     depends_on:
       db:
         condition: service_healthy
@@ -31,6 +31,7 @@ services:
       - .env
     environment:
       - PYTHONPATH=/usr/src/fastapi
+      - ENVIRONMENT=docker
     networks:
       - cinema_network
 
