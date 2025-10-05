@@ -1,0 +1,92 @@
+services:
+
+  web:
+    build:
+      context: .
+      dockerfile: ./docker/tests/Dockerfile
+    mem_limit: 2g
+    command: [ "pytest", "-c", "/usr/src/config/pytest.ini",
+               "-m", "e2e", "--maxfail=5", "--disable-warnings", "-v", "--tb=short" ]
+    environment:
+      - PYTHONPATH=/usr/src/fastapi
+      - ENVIRONMENT=testing
+      - EMAIL_HOST=mailhog_cinema_test
+      - EMAIL_PORT=1025
+      - EMAIL_HOST_USER=testuser@mate.com
+      - EMAIL_HOST_PASSWORD=test_password
+      - EMAIL_USE_TLS=False
+      - MAILHOG_API_PORT=8025
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=some_password
+      - MINIO_HOST=minio-cinema-test
+      - MINIO_PORT=9000
+      - MINIO_STORAGE=cinema-storage
+    depends_on:
+      mailhog:
+        condition: service_started
+      minio:
+        condition: service_healthy
+    volumes:
+      - ./src:/usr/src/fastapi
+    networks:
+      - cinema_network_test
+
+  mailhog:
+    image: mailhog/mailhog
+    container_name: mailhog_cinema_test
+    ports:
+      - "8025:8025"
+      - "1025:1025"
+    networks:
+      - cinema_network_test
+
+  minio:
+    image: minio/minio:latest
+    container_name: minio-cinema-test
+    command: server --console-address ":9001" /data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=some_password
+      - MINIO_HOST=minio-cinema-test
+      - MINIO_PORT=9000
+      - MINIO_STORAGE=cinema-storage
+    volumes:
+      - minio_data_test:/data
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:9000/minio/health/live" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - cinema_network_test
+
+
+
+  minio_mc:
+    build:
+      context: .
+      dockerfile: docker/minio_mc/Dockerfile
+    container_name: minio_mc_cinema_test
+    command: [ "/bin/sh", "-c", "/commands/setup_minio.sh" ]
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=some_password
+      - MINIO_HOST=minio-cinema-test
+      - MINIO_PORT=9000
+      - MINIO_STORAGE=cinema-storage
+    networks:
+      - cinema_network_test
+
+volumes:
+  minio_data_test:
+    driver: local
+
+networks:
+  cinema_network_test:
+    driver: bridge
