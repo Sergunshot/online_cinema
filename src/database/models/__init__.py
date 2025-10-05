@@ -1,6 +1,5 @@
-from sqlalchemy.orm import declarative_base
+from .base import Base
 
-Base = declarative_base()
 from .accounts import (
     UserGroupEnum,
     GenderEnum,
@@ -28,5 +27,5 @@ from .movies import (
     Favorite,
     Rating,
 )
-from .orders import OrderItem, Order
+from .orders import OrderItem, Order, OrderStatusEnum
 from .payments import Payment, PaymentItem, PaymentStatusEnum
