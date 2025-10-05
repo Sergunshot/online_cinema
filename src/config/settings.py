@@ -18,6 +18,10 @@ class BaseAppSettings(BaseSettings):
     PASSWORD_RESET_COMPLETE_TEMPLATE_NAME: str = "password_reset_complete.html"
     PASSWORD_CHANGE_NAME: str = "password_change.html"
 
+    SEND_PAYMENT_EMAIL_TEMPLATE_NAME: str = "send_payment.html"
+    SEND_REFUND_EMAIL_TEMPLATE_NAME: str = "send_refund.html"
+    SEND_CANCELLATION_EMAIL_TEMPLATE_NAME: str = "send_cancellation.html"
+
     LOGIN_TIME_DAYS: int = 7
 
     EMAIL_HOST: str = os.getenv("EMAIL_HOST", "host")
@@ -43,6 +47,10 @@ class BaseAppSettings(BaseSettings):
     CELERY_RESULT_BACKEND: str = os.environ.get(
         "CELERY_RESULT_BACKEND", "redis://127.0.0.1:6379/0"
     )
+
+    STRIPE_SECRET_KEY: str = os.environ.get("STRIPE_SECRET_KEY")
+    STRIPE_WEBHOOK_SECRET: str = os.environ.get("STRIPE_WEBHOOK_SECRET")
+    STRIPE_CURRENCY: str = os.environ.get("STRIPE_CURRENCY")
 
 
 class Settings(BaseAppSettings):

@@ -29,6 +29,12 @@ pydantic = "^2.11.4"
 python-multipart = "^0.0.20"
 celery = "^5.5.2"
 aiosqlite = "^0.21.0"
+stripe = "^12.2.0"
+validators = "^0.35.0"
+beautifulsoup4 = "^4.13.4"
+pandas = "^2.3.1"
+tqdm = "^4.66.1"
+fastapi = "^0.115.12"
 
 
 [tool.poetry.group.dev.dependencies]

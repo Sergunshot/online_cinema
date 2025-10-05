@@ -1,4 +1,5 @@
 import logging
+from decimal import Decimal
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
@@ -23,7 +24,10 @@ class EmailSender(EmailSenderInterface):
         activation_complete_email_template_name: str,
         password_email_template_name: str,
         password_complete_email_template_name: str,
-        password_change_name: str
+        password_change_email_template_name: str,
+        send_payment_email_template_name: str,
+        send_refund_email_template_name: str,
+        send_cancellation_email_template_name: str,
     ):
         self._hostname = hostname
         self._port = port
@@ -38,7 +42,10 @@ class EmailSender(EmailSenderInterface):
         self._password_complete_email_template_name = (
             password_complete_email_template_name
         )
-        self._password_change = password_change_name
+        self._password_change = password_change_email_template_name
+        self._send_payment_email_template_name = send_payment_email_template_name
+        self._send_refund_email_template_name = send_refund_email_template_name
+        self._send_cancellation_email_template_name = send_cancellation_email_template_name
 
         self._env = Environment(loader=FileSystemLoader(template_dir))
 
@@ -131,7 +138,7 @@ class EmailSender(EmailSenderInterface):
         await self._send_email(email, subject, html_content)
 
     async def send_password_change(self, email: str) -> None:
-        template = self._env.get_template(self._password_change)
+        template = self._env.get_template(self._password_change_email_template_name)
         html_content = template.render(email=email)
 
         subject = "Password Successfully Changed"
@@ -151,4 +158,34 @@ class EmailSender(EmailSenderInterface):
         <p>You have got answer on your comment: {answer_text}</p>
         """
         subject = "New Reply to Your Comment."
+        await self._send_email(email, subject, html_content)
+
+    async def send_payment_email(self, email: str, amount: Decimal) -> None:
+        """
+        Sends a payment confirmation email to the user.
+        """
+
+        template = self._env.get_template(self._send_payment_email_template_name)
+        html_content = template.render(amount=amount)
+        subject = "Payment Confirmation"
+        await self._send_email(email, subject, html_content)
+
+    async def send_refund_email(self, email: str, amount: Decimal) -> None:
+        """
+        Sends a refund confirmation email to the user.
+        """
+
+        template = self._env.get_template(self._send_refund_email_template_name)
+        html_content = template.render(amount=amount)
+        subject = "Refund Processed"
+        await self._send_email(email, subject, html_content)
+
+    async def send_cancellation_email(self, email: str, amount: Decimal) -> None:
+        """
+        Sends a payment cancellation email to the user.
+        """
+
+        template = self._env.get_template(self._send_cancellation_email_template_name)
+        html_content = template.render(amount=amount)
+        subject = "Payment Canceled"
         await self._send_email(email, subject, html_content)

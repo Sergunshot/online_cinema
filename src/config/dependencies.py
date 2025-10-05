@@ -3,7 +3,7 @@ import os
 from fastapi import Depends, HTTPException
 from starlette import status
 
-from config.settings import TestingSettings, Settings, BaseAppSettings
+from config.settings import TestingSettings, Settings, BaseAppSettings, LocalSettings
 from exceptions import BaseSecurityError
 from notifications import EmailSenderInterface, EmailSender
 from security import get_token
@@ -16,17 +16,21 @@ def get_settings() -> BaseAppSettings:
     """
     Retrieve the application settings based on the current environment.
 
-    This function reads the 'ENVIRONMENT' environment variable (defaulting to 'developing' if not set)
+    This function reads the 'ENVIRONMENT' environment variable (defaulting to 'local' if not set)
     and returns a corresponding settings instance. If the environment is 'testing', it returns an instance
     of TestingSettings; otherwise, it returns an instance of Settings.
 
     Returns:
         BaseAppSettings: The settings instance appropriate for the current environment.
     """
-    environment = os.getenv("ENVIRONMENT", "developing")
-    if environment == "testing":
+    env_mode = os.getenv("ENVIRONMENT", "local")
+    if env_mode == "testing":
         return TestingSettings()
-    return Settings()
+
+    if env_mode == "local":
+        return LocalSettings()
+
+    return Settings()  # env_mode == "docker" or else
 
 
 def get_jwt_auth_manager(
@@ -78,11 +82,16 @@ def get_accounts_email_notificator(
         password=settings.EMAIL_HOST_PASSWORD,
         use_tls=settings.EMAIL_USE_TLS,
         template_dir=settings.PATH_TO_EMAIL_TEMPLATES_DIR,
+        # For accounts
         activation_email_template_name=settings.ACTIVATION_EMAIL_TEMPLATE_NAME,
         activation_complete_email_template_name=settings.ACTIVATION_COMPLETE_EMAIL_TEMPLATE_NAME,
         password_email_template_name=settings.PASSWORD_RESET_TEMPLATE_NAME,
         password_complete_email_template_name=settings.PASSWORD_RESET_COMPLETE_TEMPLATE_NAME,
-        password_change_name=settings.PASSWORD_CHANGE_NAME,
+        password_change_email_template_name=settings.PASSWORD_CHANGE_NAME,
+        # For payments
+        send_payment_email_template_name=settings.SEND_PAYMENT_EMAIL_TEMPLATE_NAME,
+        send_refund_email_template_name=settings.SEND_REFUND_EMAIL_TEMPLATE_NAME,
+        send_cancellation_email_template_name=settings.SEND_CANCELLATION_EMAIL_TEMPLATE_NAME,
     )
 
 

@@ -11,7 +11,7 @@ from .accounts import (
     PasswordResetToken,
     RefreshToken,
 )
-from .cart import Cart, CartItem, Purchased
+from .cart import Cart, CartItem
 from .movies import (
     MovieGenres,
     MovieDirectors,
@@ -29,4 +29,4 @@ from .movies import (
     Rating,
 )
 from .orders import OrderItem, Order
-from .payments import Payment, PaymentItem
+from .payments import Payment, PaymentItem, PaymentStatusEnum

@@ -11,9 +11,14 @@ from sqlalchemy import (
     Column,
     Integer,
 )
+from typing import TYPE_CHECKING
 from sqlalchemy.orm import mapped_column, Mapped, relationship
 
-from . import Base, User
+from .base import Base
+
+from .accounts import User
+if TYPE_CHECKING:
+    from .orders import OrderItem
 
 MovieGenres = Table(
     "movie_genres",
@@ -133,10 +138,10 @@ class Movie(Base):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     year: Mapped[int] = mapped_column(Integer, nullable=False)
     time: Mapped[int] = mapped_column(Integer, nullable=False)
-    imdb: Mapped[float] = mapped_column(Float, nullable=False)
+    imdb: Mapped[float] = mapped_column(Float, nullable=True, default=0.0)
     votes: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    meta_score: Mapped[float] = mapped_column(Float, nullable=True)
-    gross: Mapped[float] = mapped_column(Float, nullable=True)
+    meta_score: Mapped[float] = mapped_column(Float, nullable=True, default=None)
+    gross: Mapped[float] = mapped_column(Float, nullable=True, default=None)
     description: Mapped[str] = mapped_column(Text, nullable=False)
     price: Mapped[float] = mapped_column(DECIMAL(10, 2), nullable=False)
     certification_id: Mapped[int] = mapped_column(
@@ -149,7 +154,7 @@ class Movie(Base):
     favorites: Mapped[list["Favorite"]] = relationship(
         "Favorite", back_populates="movie", cascade="all, delete-orphan"
     )
-    ratings: Mapped[float] = relationship(
+    ratings: Mapped[list["Rating"]] = relationship(
         "Rating", back_populates="movie", cascade="all, delete-orphan"
     )
     genres: Mapped[list["Genre"]] = relationship(
@@ -204,6 +209,9 @@ class Comment(Base):
 
     user: Mapped[User] = relationship("User", back_populates="comments")
     movie: Mapped[Movie] = relationship("Movie", back_populates="comments")
+    answers: Mapped[list["AnswerComment"]] = relationship(
+        "AnswerComment", back_populates="comment", cascade="all, delete-orphan"
+    )
 
 
 class AnswerComment(Base):
@@ -213,6 +221,9 @@ class AnswerComment(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
     comment_id: Mapped[int] = mapped_column(ForeignKey("comments.id"), nullable=False)
     text: Mapped[str] = mapped_column(Text, nullable=False)
+
+    comment: Mapped["Comment"] = relationship("Comment", back_populates="answers")
+    user: Mapped[User] = relationship("User")
 
 
 class Favorite(Base):

@@ -1,9 +1,13 @@
 import datetime
-from typing import List
-from sqlalchemy import ForeignKey, UniqueConstraint, Integer
+from typing import List, TYPE_CHECKING
+from sqlalchemy import ForeignKey, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base
+
+if TYPE_CHECKING:
+    from .accounts import User
+    from .movies import Movie
 
 
 class Cart(Base):
@@ -32,22 +36,6 @@ class CartItem(Base):
     movie: Mapped["Movie"] = relationship("Movie", back_populates="cart_items")
 
     __table_args__ = (UniqueConstraint("cart_id", "movie_id", name="unique_cart_movie"),)
-
-    def __repr__(self) -> str:
-        return f"<CartItem(id={self.id}, cart_id={self.cart_id}, movie_id={self.movie_id})>"
-
-
-class Purchased(Base):
-    __tablename__ = "purchased"
-    __table_args__ = (UniqueConstraint("cart_id", "movie_id", name="unique_cart_movie"),)
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("users.id"), nullable=False
-    )
-    movie_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("movies.id"), nullable=False
-    )
 
     def __repr__(self) -> str:
         return f"<CartItem(id={self.id}, cart_id={self.cart_id}, movie_id={self.movie_id})>"
