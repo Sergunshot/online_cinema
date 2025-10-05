@@ -164,11 +164,6 @@ class EmailSender(EmailSenderInterface):
         """
         Sends a payment confirmation email to the user.
         """
-        # html_content = f"""
-        #     <p>Your payment of ${amount} was successful!</p>
-        # """
-        # subject = "Payment Confirmation"
-        # await self._send_email(email, subject, html_content)
 
         template = self._env.get_template(self._send_payment_email_template_name)
         html_content = template.render(amount=amount)
@@ -179,11 +174,6 @@ class EmailSender(EmailSenderInterface):
         """
         Sends a refund confirmation email to the user.
         """
-        # html_content = f"""
-        #     <p>Your refund of ${amount} has been processed successfully.</p>
-        # """
-        # subject = "Refund Processed"
-        # await self._send_email(email, subject, html_content)
 
         template = self._env.get_template(self._send_refund_email_template_name)
         html_content = template.render(amount=amount)
@@ -194,11 +184,6 @@ class EmailSender(EmailSenderInterface):
         """
         Sends a payment cancellation email to the user.
         """
-        # html_content = f"""
-        #     <p>Your payment of ${amount} has been canceled..</p>
-        # """
-        # subject = "Payment Canceled"
-        # await self._send_email(email, subject, html_content)
 
         template = self._env.get_template(self._send_cancellation_email_template_name)
         html_content = template.render(amount=amount)
