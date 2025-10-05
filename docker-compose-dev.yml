@@ -41,11 +41,12 @@ services:
     build: .
     container_name: backend_cinema
     command: [ "/bin/bash", "/commands/run_web_server_dev.sh" ]
+    working_dir: /usr/src/fastapi
     env_file:
       - .env
     environment:
       - LOG_LEVEL=debug
-      - PYTHONPATH=/usr/src/fastapi
+      - PYTHONPATH=/usr/src/fastapi:/usr/src/fastapi/src
       - WATCHFILES_FORCE_POLLING=true
       - ENVIRONMENT=docker
     ports:
@@ -56,24 +57,26 @@ services:
       minio:
         condition: service_healthy
     volumes:
-      - ./src:/usr/src/fastapi
+      - ./:/usr/src/fastapi
     networks:
       - cinema_network
 
   migrator:
     build: .
     container_name: alembic_migrator_cinema
-    command: ["/bin/bash", "-lc", "/commands/run_migration.sh"]
+    command: [ "/bin/bash", "-lc", "/commands/run_migration.sh" ]
+    working_dir: /usr/src/fastapi
     depends_on:
       db:
         condition: service_healthy
     volumes:
-      - ./src:/usr/src/fastapi
+      - ./:/usr/src/fastapi
     env_file:
       - .env
     environment:
-      - PYTHONPATH=/usr/src/fastapi
+      - PYTHONPATH=/usr/src/fastapi:/usr/src/fastapi/src
       - ENVIRONMENT=docker
+      - ALEMBIC_CONFIG=/usr/src/fastapi/alembic.ini
     networks:
       - cinema_network
 
@@ -82,6 +85,9 @@ services:
       context: .
       dockerfile: ./docker/mailhog/Dockerfile
     container_name: mailhog_cinema
+    entrypoint: [ "/bin/sh", "-lc" ]
+    command: >
+      mailhog -smtp-bind-addr 0.0.0.0:1025 -ui-bind-addr 0.0.0.0:8025
     ports:
       - "8025:8025"
       - "1025:1025"
@@ -92,11 +98,59 @@ services:
       MAILHOG_PASSWORD: ${MAILHOG_PASSWORD:-secret}
     networks:
       - cinema_network
+
+  redis:
+    image: redis:7
+    container_name: redis_cinema
+    command: [ "redis-server", "--save", "" ]
     healthcheck:
-      test: [ "CMD", "wget", "-qO-", "http://localhost:8025/" ]
+      test: [ "CMD", "redis-cli", "ping" ]
       interval: 5s
       timeout: 3s
-      retries: 10
+      retries: 5
+      start_period: 5s
+    networks:
+      - cinema_network
+
+  celery_worker:
+    build: .
+    container_name: celery_worker_cinema
+    working_dir: /usr/src/fastapi
+    command: [ "/bin/bash", "-lc", "celery -A src.celery_app:celery_app worker --loglevel=INFO" ]
+    env_file:
+      - .env
+    environment:
+      - PYTHONPATH=/usr/src/fastapi:/usr/src/fastapi/src
+      - ENVIRONMENT=docker
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./:/usr/src/fastapi   # <-- МОНТИРУЕМ КОРЕНЬ, а не ./src
+    networks:
+      - cinema_network
+
+  celery_beat:
+    build: .
+    container_name: celery_beat_cinema
+    working_dir: /usr/src/fastapi
+    command: [ "/bin/bash", "-lc", "celery -A src.celery_app:celery_app beat --loglevel=INFO" ]
+    env_file:
+      - .env
+    environment:
+      - PYTHONPATH=/usr/src/fastapi:/usr/src/fastapi/src
+      - ENVIRONMENT=docker
+    depends_on:
+      redis:
+        condition: service_healthy
+      celery_worker:
+        condition: service_started
+    volumes:
+      - ./:/usr/src/fastapi   # <-- тоже корень
+    networks:
+      - cinema_network
 
   minio:
     image: minio/minio:latest
@@ -124,7 +178,7 @@ services:
       context: .
       dockerfile: docker/minio_mc/Dockerfile
     container_name: minio_mc_cinema
-    command: ["/bin/sh", "-c", "/commands/setup_minio.sh"]
+    command: [ "/bin/sh", "-c", "/commands/setup_minio.sh" ]
     depends_on:
       minio:
         condition: service_healthy
