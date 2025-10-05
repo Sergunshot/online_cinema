@@ -1,17 +1,18 @@
 import enum
 from datetime import datetime, date, timezone, timedelta
-from typing import Optional, List
+from typing import Optional, List, TYPE_CHECKING
 
-from pydantic import validators
 from sqlalchemy import Integer, Enum, String, DateTime, func, Boolean, ForeignKey, Date, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
 
-from . import Base
-from .orders import Order
-from .payments import Payment
+from .base import Base
 from database.validators import accounts as validators
 from security.passwords import hash_password, verify_password
 from security.utils import generate_secure_token
+
+if TYPE_CHECKING:
+    from .cart import Cart
+    from .orders import Order, Payment
 
 
 class UserGroupEnum(str, enum.Enum):
@@ -44,7 +45,7 @@ class User(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     email: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
     _hashed_password: Mapped[str] = mapped_column("hashed_password", String(255), nullable=False)
-    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -54,14 +55,16 @@ class User(Base):
     group_id: Mapped[int] = mapped_column(ForeignKey("user_groups.id", ondelete="CASCADE"), nullable=False)
     group: Mapped["UserGroup"] = relationship(UserGroup, back_populates="users")
     profile: Mapped["UserProfile"] = relationship("UserProfile", back_populates="user", uselist=False)
-    activation_token: Mapped["ActivationToken"] = relationship("ActivationToken", back_populates="user")
-    password_reset_token: Mapped["PasswordResetToken"] = relationship("PasswordResetToken", back_populates="user")
+    activation_token: Mapped["ActivationToken"] = relationship("ActivationToken", back_populates="user", uselist=False)
+    password_reset_token: Mapped["PasswordResetToken"] = relationship(
+        "PasswordResetToken", back_populates="user", uselist=False
+    )
     refresh_tokens: Mapped["RefreshToken"] = relationship("RefreshToken", back_populates="user")
 
     ratings = relationship("Rating", back_populates="user")
     comments = relationship("Comment", back_populates="user")
     favorites = relationship("Favorite", back_populates="user")
-    cart = relationship("Cart", back_populates="user")
+    cart: Mapped[list["Cart"]] = relationship("Cart", back_populates="user")
     orders: Mapped[List["Order"]] = relationship("Order", back_populates="user")
     payments: Mapped[List["Payment"]] = relationship("Payment", back_populates="user")
 

@@ -1,13 +1,18 @@
 from datetime import datetime
 from decimal import Decimal
-from sqlalchemy import Enum as SQLEnum
+from sqlalchemy import Enum as SQLEnum, text
 from enum import Enum
 
 from sqlalchemy import Integer, ForeignKey, DECIMAL, DateTime, func
 from sqlalchemy.orm import relationship, Mapped, mapped_column
 
-from typing import List
+from typing import List, TYPE_CHECKING
 from .base import Base
+
+if TYPE_CHECKING:
+    from .accounts import User
+    from .payments import Payment, PaymentItem
+    from .movies import Movie
 
 
 class OrderStatusEnum(Enum):
@@ -35,7 +40,12 @@ class Order(Base):
         default=OrderStatusEnum.PENDING,
         nullable=False
     )
-    total_amount: Mapped[Decimal] = mapped_column(DECIMAL(10, 2), nullable=False)
+    total_amount: Mapped[Decimal] = mapped_column(
+        DECIMAL(10, 2),
+        nullable=False,
+        default=Decimal("0.00"),
+        server_default=text("0.00"),
+    )
     user: Mapped["User"] = relationship("User", back_populates="orders")
     items: Mapped[List["OrderItem"]] = relationship("OrderItem", back_populates="order")
     payments: Mapped[List["Payment"]] = relationship(

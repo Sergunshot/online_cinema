@@ -1,9 +1,13 @@
 import datetime
-from typing import List
+from typing import List, TYPE_CHECKING
 from sqlalchemy import ForeignKey, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base
+
+if TYPE_CHECKING:
+    from .accounts import User
+    from .movies import Movie
 
 
 class Cart(Base):
