@@ -44,6 +44,6 @@ class CartCreateSchema(BaseModel):
 class CartResponseSchema(BaseModel):
     id: int
     user_id: int
-    cart_items: List[CartItemResponseSchema]
+    items: List[CartItemResponseSchema] = Field(default_factory=list)
 
     model_config = ConfigDict(from_attributes=True)
