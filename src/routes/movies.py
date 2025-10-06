@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status, BackgroundTasks
 from sqlalchemy import or_, func, and_
@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload, joinedload
 
-from config import get_current_user_id, get_accounts_email_notificator
+from config.dependencies import get_current_user_id, get_accounts_email_notificator
 from database import User, UserGroupEnum
 from database.models import OrderItem
 from notifications import EmailSenderInterface
@@ -33,10 +33,10 @@ router = APIRouter()
     response_model=MovieListResponseSchema,
     summary="Get a paginated list of movies",
     description=(
-        "This endpoint retrieves a paginated list of movies from the database. "
-        "Clients can specify the `page` number and the number of items per page using `per_page`. "
-        "The response includes details about the movies, total pages, and total items, "
-        "along with links to the previous and next pages if applicable."
+            "This endpoint retrieves a paginated list of movies from the database. "
+            "Clients can specify the `page` number and the number of items per page using `per_page`. "
+            "The response includes details about the movies, total pages, and total items, "
+            "along with links to the previous and next pages if applicable."
     ),
     responses={
         404: {
@@ -48,27 +48,19 @@ router = APIRouter()
     },
 )
 async def get_movie_list(
-    page: int = Query(1, ge=1, description="Page number (1-based index)"),
-    per_page: int = Query(10, ge=1, le=20, description="Number of items per page"),
-    year: int | None = Query(None, description="Filter by year"),
-    min_imdb: float | None = Query(None, description="Filter by min_imdb"),
-    max_imdb: float | None = Query(None, description="Filter by max_imdb"),
-    genre: str | None = Query(None, description="Filter by genre name"),
-    director: str | None = Query(None, description="Filter by director name"),
-    star: str | None = Query(None, description="Filter by star name"),
-    search: str | None = Query(
-        None, description="Search by title, description, actor or director"
-    ),
-    sort_by: str | None = Query(None, description="Sort by 'price', 'year', 'votes'"),
-    db: AsyncSession = Depends(get_db),
+        page: int = Query(1, ge=1, description="Page number (1-based index)"),
+        per_page: int = Query(10, ge=1, le=20, description="Number of items per page"),
+        year: Optional[int] = Query(None, description="Filter by year"),
+        min_imdb: Optional[float] = Query(None, description="Filter by min_imdb"),
+        max_imdb: Optional[float] = Query(None, description="Filter by max_imdb"),
+        genre: Optional[str] = Query(None, description="Filter by genre name"),
+        director: Optional[str] = Query(None, description="Filter by director name"),
+        star: Optional[str] = Query(None, description="Filter by star name"),
+        search: Optional[str] = Query(None, description="Search by title, description, actor or director"),
+        sort_by: Optional[str] = Query(None, description="Sort by 'price', 'year', 'votes' (desc)"),
+        sort: Optional[str] = Query(None, description="Sort as 'field:dir', e.g. 'id:desc'"),
+        db: AsyncSession = Depends(get_db),
 ) -> MovieListResponseSchema:
-    """
-    Fetch a paginated list of movies from the database.
-
-    This function retrieves a paginated list of movies, allowing the client to specify
-    the page number and the number of items per page. It calculates the total pages
-    and provides links to the previous and next pages when applicable.
-    """
     offset = (page - 1) * per_page
 
     query = (
@@ -78,18 +70,13 @@ async def get_movie_list(
             selectinload(Movie.directors),
             selectinload(Movie.stars),
         )
-        .order_by()
     )
 
-    order_by = Movie.default_order_by()
-    if order_by:
-        query = query.order_by(*order_by)
-
-    if year:
+    if year is not None:
         query = query.filter(Movie.year == year)
-    if min_imdb:
+    if min_imdb is not None:
         query = query.filter(Movie.imdb >= min_imdb)
-    if max_imdb:
+    if max_imdb is not None:
         query = query.filter(Movie.imdb <= max_imdb)
     if director:
         query = query.join(Movie.directors).filter(Director.name.ilike(f"%{director}%"))
@@ -97,7 +84,6 @@ async def get_movie_list(
         query = query.join(Movie.stars).filter(Star.name.ilike(f"%{star}%"))
     if genre:
         query = query.join(Movie.genres).filter(Genre.name.ilike(f"%{genre}%"))
-
     if search:
         query = (
             query.outerjoin(Movie.directors)
@@ -112,37 +98,59 @@ async def get_movie_list(
             )
         )
 
-    sort_fields = {
-        "price": Movie.price,
-        "year": Movie.year,
-        "votes": Movie.votes,
-    }
-    if sort_by in sort_fields:
-        query = query.order_by(sort_fields[sort_by].desc())
+    applied_sort = False
+    if sort:
+        field, _, direction = sort.partition(":")
+        field = field.strip().lower()
+        direction = (direction or "asc").strip().lower()
+        cols = {
+            "id": Movie.id,
+            "price": Movie.price,
+            "year": Movie.year,
+            "votes": Movie.votes,
+            "imdb": Movie.imdb,
+        }
+        if field in cols:
+            col = cols[field]
+            query = query.order_by(col.desc() if direction == "desc" else col.asc())
+            applied_sort = True
 
-    total_items = query.count()
+    if not applied_sort:
+        sort_map = {"price": Movie.price, "year": Movie.year, "votes": Movie.votes}
+        if sort_by in sort_map:
+            query = query.order_by(sort_map[sort_by].desc())
+        else:
+            order_by = getattr(Movie, "default_order_by", lambda: None)()
+            if order_by:
+                query = query.order_by(*order_by)
+            else:
+                query = query.order_by(Movie.id.asc())
 
-    movies = query.offset(offset).limit(per_page).all()
+    count_query = query.with_only_columns(func.count(func.distinct(Movie.id))).order_by(None)
+    total_items = await db.scalar(count_query) or 0
 
-    if not movies:
+    if total_items == 0:
         raise HTTPException(status_code=404, detail="No movies found.")
-
-    movie_list = [MovieListItemSchema.model_validate(movie) for movie in movies]
 
     total_pages = (total_items + per_page - 1) // per_page
 
-    response = MovieListResponseSchema(
-        movies=movie_list,
-        prev_page=f"/movies/?page={page - 1}&per_page={per_page}" if page > 1 else None,
-        next_page=(
-            f"/movies/?page={page + 1}&per_page={per_page}"
-            if page < total_pages
-            else None
-        ),
+    if page > total_pages:
+        raise HTTPException(status_code=404, detail="No movies found.")
+
+    offset = (page - 1) * per_page
+    result = await db.execute(query.offset(offset).limit(per_page))
+    movies = result.scalars().unique().all()
+
+    prev_page = f"/api/v1/movies/?page={page - 1}&per_page={per_page}" if page > 1 else None
+    next_page = f"/api/v1/movies/?page={page + 1}&per_page={per_page}" if page < total_pages else None
+
+    return MovieListResponseSchema(
+        items=[MovieListItemSchema.model_validate(m) for m in movies],
+        prev_page=prev_page,
+        next_page=next_page,
         total_pages=total_pages,
         total_items=total_items,
     )
-    return response
 
 
 @router.post(
@@ -150,10 +158,10 @@ async def get_movie_list(
     response_model=MovieDetailSchema,
     summary="Add a new movie",
     description=(
-        "This endpoint allows clients to add a new movie to the database. "
-        "It accepts details such as name, date, genres, actors, languages, and "
-        "other attributes. The associated country, genres, actors, and languages "
-        "will be created or linked automatically."
+            "This endpoint allows clients to add a new movie to the database. "
+            "It accepts details such as name, date, genres, actors, languages, and "
+            "other attributes. The associated country, genres, actors, and languages "
+            "will be created or linked automatically."
     ),
     responses={
         201: {
@@ -169,122 +177,85 @@ async def get_movie_list(
     status_code=201,
 )
 async def create_movie(
-    movie_data: MovieCreateSchema,
-    user_id: int = Depends(get_current_user_id),
-    db: AsyncSession = Depends(get_db),
+        movie_data: MovieCreateSchema,
+        user_id: int = Depends(get_current_user_id),
+        db: AsyncSession = Depends(get_db),
 ) -> MovieDetailSchema:
-    """
-    Add a new movie to the database.
-
-    This endpoint allows the creation of a new movie with details such as
-    name, release date, genres, actors, and languages. It automatically
-    handles linking or creating related entities.
-    """
-    result = await db.execute(
+    user = await db.scalar(
         select(User).options(selectinload(User.group)).where(User.id == user_id)
     )
-    user = result.scalars().first()
-
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-
     if user.group.name not in (UserGroupEnum.MODERATOR, UserGroupEnum.ADMIN):
         raise HTTPException(
-            status_code=403, detail="You do not have access to perform this action."
+            status_code=403,
+            detail="You do not have access to perform this action.",
         )
 
-    existing_stmt = select(Movie).where(
-        (Movie.name == movie_data.name), (Movie.year == movie_data.year)
+    existing = await db.scalar(
+        select(Movie).where(Movie.name == movie_data.name, Movie.year == movie_data.year)
     )
-    existing_result = await db.execute(existing_stmt)
-    existing_movie = existing_result.scalars().first()
-    if existing_movie:
+    if existing:
         raise HTTPException(
             status_code=409,
             detail=f"A movie with the name '{movie_data.name}' and release year '{movie_data.year}' already exists.",
         )
 
+    cert = await db.scalar(
+        select(Certification).where(Certification.id == movie_data.certification_id)
+    )
+    if not cert:
+        raise HTTPException(status_code=400, detail="Invalid certification_id.")
+
+    async def load_list(model, ids: list[int], label: str):
+        if not ids:
+            return []
+        res = await db.execute(select(model).where(model.id.in_(ids)))
+        objs = res.scalars().all()
+        if len(objs) != len(set(ids)):
+            raise HTTPException(status_code=400, detail=f"One or more {label} are invalid.")
+        return objs
+
+    genres = await load_list(Genre, movie_data.genre_ids, "genre_ids")
+    stars = await load_list(Star, movie_data.star_ids, "star_ids")
+    directors = await load_list(Director, movie_data.director_ids, "director_ids")
+
+    movie = Movie(
+        uuid=movie_data.uuid,
+        name=movie_data.name,
+        year=movie_data.year,
+        time=movie_data.time,
+        imdb=movie_data.imdb,
+        votes=movie_data.votes,
+        meta_score=movie_data.meta_score,
+        gross=movie_data.gross,
+        description=movie_data.description,
+        price=movie_data.price,
+        certification=cert,
+        genres=genres,
+        stars=stars,
+        directors=directors,
+    )
+    db.add(movie)
+
     try:
-        certification_stmt = select(Certification).where(
-            Certification.name == movie_data.certification
-        )
-        certification_result = await db.execute(certification_stmt)
-        existing_certification = certification_result.scalars().first()
-        if not existing_certification:
-            new_certification = Certification(name=movie_data.certification)
-            db.add(new_certification)
-            await db.flush()
-            certification = new_certification
-        else:
-            certification = existing_certification
-
-        genres = []
-        for genre_name in movie_data.genres:
-            genre_stmt = select(Genre).where(Genre.name == genre_name)
-            genre_result = await db.execute(genre_stmt)
-            genre = genre_result.scalars().first()
-            if not genre:
-                genre = Genre(name=genre_name)
-                db.add(genre)
-                await db.flush()
-            genres.append(genre)
-
-        stars = []
-        for star_name in movie_data.stars:
-            star_stmt = select(Star).where(Star.name == star_name)
-            star_result = await db.execute(star_stmt)
-            star = star_result.scalars().first()
-            if not star:
-                star = Star(name=star_name)
-                db.add(star)
-                await db.flush()
-            stars.append(star)
-
-        directors = []
-        for director_name in movie_data.directors:
-            director_stmt = select(Director).where(Director.name == director_name)
-            director_result = await db.execute(director_stmt)
-            director = director_result.scalars().first()
-            if not director:
-                director = Director(name=director_name)
-                db.add(director)
-                await db.flush()
-            directors.append(director)
-
-        movie = Movie(
-            uuid=movie_data.uuid,
-            name=movie_data.name,
-            year=movie_data.year,
-            time=movie_data.time,
-            imdb=movie_data.imdb,
-            meta_score=movie_data.meta_score,
-            gross=movie_data.gross,
-            description=movie_data.description,
-            price=movie_data.price,
-            genres=genres,
-            stars=stars,
-            directors=directors,
-            certification=certification,
-        )
-        db.add(movie)
         await db.commit()
-        result = await db.execute(
-            select(Movie)
-            .options(
-                selectinload(Movie.certification),
-                selectinload(Movie.genres),
-                selectinload(Movie.stars),
-                selectinload(Movie.directors),
-                selectinload(Movie.comments),
-            )
-            .where(Movie.id == movie.id)
-        )
-        movie_with_relations = result.scalars().first()
-        return MovieDetailSchema.model_validate(movie_with_relations)
-
     except IntegrityError:
         await db.rollback()
         raise HTTPException(status_code=400, detail="Invalid input data.")
+
+    movie = await db.scalar(
+        select(Movie)
+        .options(
+            selectinload(Movie.certification),
+            selectinload(Movie.genres),
+            selectinload(Movie.stars),
+            selectinload(Movie.directors),
+            selectinload(Movie.comments),
+        )
+        .where(Movie.id == movie.id)
+    )
+    return MovieDetailSchema.model_validate(movie)
 
 
 @router.get(
@@ -292,10 +263,10 @@ async def create_movie(
     response_model=MovieListResponseSchema,
     summary="Get a paginated list of favorite movies",
     description=(
-        "This endpoint retrieves a paginated list of favorite movies from the database. "
-        "Clients can specify the `page` number and the number of items per page using `per_page`. "
-        "The response includes details about the movies, total pages, and total items, "
-        "along with links to the previous and next pages if applicable."
+            "This endpoint retrieves a paginated list of favorite movies from the database. "
+            "Clients can specify the `page` number and the number of items per page using `per_page`. "
+            "The response includes details about the movies, total pages, and total items, "
+            "along with links to the previous and next pages if applicable."
     ),
     responses={
         404: {
@@ -307,19 +278,19 @@ async def create_movie(
     },
 )
 async def get_favorite_movies(
-    page: int = Query(1, ge=1, description="Page number (1-based index)"),
-    per_page: int = Query(10, ge=1, le=20, description="Number of items per page"),
-    year: int | None = Query(None, description="Filter by year"),
-    min_imdb: float | None = Query(None, description="Filter by min_imdb"),
-    max_imdb: float | None = Query(None, description="Filter by max_imdb"),
-    genre: str | None = Query(None, description="Filter by genre name"),
-    director: str | None = Query(None, description="Filter by director name"),
-    star: str | None = Query(None, description="Filter by star name"),
-    search: str | None = Query(
-        None, description="Search by title, description, actor or director"
-    ),
-    sort_by: str | None = Query(None, description="Sort by 'price', 'year', 'votes'"),
-    db: AsyncSession = Depends(get_db),
+        page: int = Query(1, ge=1, description="Page number (1-based index)"),
+        per_page: int = Query(10, ge=1, le=20, description="Number of items per page"),
+        year: int | None = Query(None, description="Filter by year"),
+        min_imdb: float | None = Query(None, description="Filter by min_imdb"),
+        max_imdb: float | None = Query(None, description="Filter by max_imdb"),
+        genre: str | None = Query(None, description="Filter by genre name"),
+        director: str | None = Query(None, description="Filter by director name"),
+        star: str | None = Query(None, description="Filter by star name"),
+        search: str | None = Query(
+            None, description="Search by title, description, actor or director"
+        ),
+        sort_by: str | None = Query(None, description="Sort by 'price', 'year', 'votes'"),
+        db: AsyncSession = Depends(get_db),
 ) -> MovieListResponseSchema:
     """
     Fetch a paginated list of favorite movies from the database.
@@ -407,9 +378,9 @@ async def get_favorite_movies(
     description="Add movie to favorites list.",
 )
 async def add_favorite(
-    movie_id: int,
-    user_id: int = Depends(get_current_user_id),
-    db: AsyncSession = Depends(get_db),
+        movie_id: int,
+        user_id: int = Depends(get_current_user_id),
+        db: AsyncSession = Depends(get_db),
 ):
     stmt = select(Movie).where(Movie.id == movie_id)
     result = await db.execute(stmt)
@@ -442,9 +413,9 @@ async def add_favorite(
     description="Remove movie from favorites list.",
 )
 async def remove_favorite(
-    movie_id: int,
-    user_id: int = Depends(get_current_user_id),
-    db: AsyncSession = Depends(get_db),
+        movie_id: int,
+        user_id: int = Depends(get_current_user_id),
+        db: AsyncSession = Depends(get_db),
 ):
     stmt = select(Movie).where(Movie.id == movie_id)
     result = await db.execute(stmt)
@@ -517,13 +488,13 @@ async def get_genres(db: AsyncSession = Depends(get_db)):
     },
 )
 async def get_movies_by_genre(
-    genre_name: str,
-    db: AsyncSession = Depends(get_db),
+        genre_id: str,
+        db: AsyncSession = Depends(get_db),
 ):
     stmt = (
         select(Genre)
         .options(selectinload(Genre.movies))
-        .where(Genre.name.ilike(genre_name))
+        .where(Genre.name.ilike(genre_id))
     )
     result = await db.execute(stmt)
     genre = result.scalar_one_or_none()
@@ -533,15 +504,31 @@ async def get_movies_by_genre(
     return genre.movies
 
 
+@router.get("/search/", response_model=list[MovieListItemSchema])
+async def search_movies(
+        search: str = Query(..., min_length=1, description="Search by title"),
+        db: AsyncSession = Depends(get_db),
+):
+    q = (
+        select(Movie)
+        .options(selectinload(Movie.genres))
+        .where(Movie.name.ilike(f"%{search}%"))
+        .order_by(Movie.id.desc())
+    )
+    result = await db.execute(q)
+    movies = result.scalars().unique().all()
+    return [MovieListItemSchema.model_validate(m) for m in movies]
+
+
 @router.get(
     "/{movie_id}/",
     response_model=MovieDetailSchema,
     summary="Get movie details by ID",
     description=(
-        "Fetch detailed information about a specific movie by its unique ID. "
-        "This endpoint retrieves all available details for the movie, such as "
-        "its name, genre, crew, budget, and revenue. If the movie with the given "
-        "ID is not found, a 404 error will be returned."
+            "Fetch detailed information about a specific movie by its unique ID. "
+            "This endpoint retrieves all available details for the movie, such as "
+            "its name, genre, crew, budget, and revenue. If the movie with the given "
+            "ID is not found, a 404 error will be returned."
     ),
     responses={
         404: {
@@ -555,8 +542,8 @@ async def get_movies_by_genre(
     },
 )
 async def get_movie_by_id(
-    movie_id: int,
-    db: AsyncSession = Depends(get_db),
+        movie_id: int,
+        db: AsyncSession = Depends(get_db),
 ) -> MovieDetailSchema:
     """
     Retrieve detailed information about a specific movie by its ID.
@@ -586,44 +573,52 @@ async def get_movie_by_id(
     return MovieDetailSchema.model_validate(movie)
 
 
-@router.patch(
+@router.put(
     "/{movie_id}/",
     summary="Update a movie by ID",
     description="This endpoint updates a specific movie by its unique ID.",
+    status_code=200
 )
 async def update_movie(
-    movie_id: int,
-    movie_data: MovieUpdateSchema,
-    user_id: int = Depends(get_current_user_id),
-    db: AsyncSession = Depends(get_db),
+        movie_id: int,
+        movie_data: MovieUpdateSchema,
+        user_id: int = Depends(get_current_user_id),
+        db: AsyncSession = Depends(get_db),
 ):
-    """
-    Update a specific movie by its ID.
-
-    This function updates a movie identified by its unique ID.
-    If the movie does not exist, a 404 error is raised.
-    """
-    stmt = select(User).options(selectinload(User.group)).where(User.id == user_id)
-    result = await db.execute(stmt)
-    user = result.scalar_one_or_none()
+    user = await db.scalar(select(User).options(selectinload(User.group)).where(User.id == user_id))
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-
     if user.group.name not in (UserGroupEnum.MODERATOR, UserGroupEnum.ADMIN):
-        raise HTTPException(
-            status_code=403, detail="You do not have access to perform this action."
-        )
+        raise HTTPException(status_code=403, detail="You do not have access to perform this action.")
 
-    stmt = select(Movie).where(Movie.id == movie_id)
-    result = await db.execute(stmt)
-    movie = result.scalar_one_or_none()
+    movie = await db.scalar(select(Movie).where(Movie.id == movie_id))
     if not movie:
-        raise HTTPException(
-            status_code=404, detail="Movie with the given ID was not found."
-        )
+        raise HTTPException(status_code=404, detail="Movie with the given ID was not found.")
 
-    for field, value in movie_data.model_dump(exclude_unset=True).items():
-        setattr(movie, field, value)
+    data = movie_data.model_dump(exclude_unset=True)
+
+    if "certification_id" in data:
+        cert = await db.scalar(select(Certification).where(Certification.id == data.pop("certification_id")))
+        if not cert:
+            raise HTTPException(status_code=400, detail="Invalid certification_id.")
+        movie.certification = cert
+
+    async def set_m2m(attr: str, model, ids: list[int]):
+        res = await db.execute(select(model).where(model.id.in_(ids)))
+        objs = res.scalars().all()
+        if len(objs) != len(set(ids)):
+            raise HTTPException(status_code=400, detail=f"One or more {attr} are invalid.")
+        setattr(movie, attr, objs)
+
+    if "genre_ids" in data:
+        await set_m2m("genres", Genre, data.pop("genre_ids"))
+    if "star_ids" in data:
+        await set_m2m("stars", Star, data.pop("star_ids"))
+    if "director_ids" in data:
+        await set_m2m("directors", Director, data.pop("director_ids"))
+
+    for k, v in data.items():
+        setattr(movie, k, v)
 
     try:
         await db.commit()
@@ -639,11 +634,12 @@ async def update_movie(
     "/{movie_id}/",
     summary="Delete a movie by ID",
     description="This endpoint deletes a specific movie by its unique ID.",
+    status_code=200
 )
 async def delete_movie(
-    movie_id: int,
-    user_id: int = Depends(get_current_user_id),
-    db: AsyncSession = Depends(get_db),
+        movie_id: int,
+        user_id: int = Depends(get_current_user_id),
+        db: AsyncSession = Depends(get_db),
 ):
     """
     Delete a specific movie by its ID.
@@ -690,9 +686,9 @@ async def delete_movie(
     description="Likes a movie by ID",
 )
 async def like_movie(
-    movie_id: int,
-    user_id: User = Depends(get_current_user_id),
-    db: AsyncSession = Depends(get_db),
+        movie_id: int,
+        user_id: User = Depends(get_current_user_id),
+        db: AsyncSession = Depends(get_db),
 ):
     stmt_movie = select(Movie).where(Movie.id == movie_id)
     result_movie = await db.execute(stmt_movie)
@@ -719,9 +715,9 @@ async def like_movie(
     description="Dislikes a movie by ID",
 )
 async def dislike_movie(
-    movie_id: int,
-    user_id: User = Depends(get_current_user_id),
-    db: AsyncSession = Depends(get_db),
+        movie_id: int,
+        user_id: User = Depends(get_current_user_id),
+        db: AsyncSession = Depends(get_db),
 ):
     stmt_movie = select(Movie).where(Movie.id == movie_id)
     result_movie = await db.execute(stmt_movie)
@@ -751,10 +747,10 @@ async def dislike_movie(
     response_model=List[CommentSchema],
 )
 async def create_comment(
-    movie_id: int,
-    comment_text: str,
-    user_id: int = Depends(get_current_user_id),
-    db: AsyncSession = Depends(get_db),
+        movie_id: int,
+        comment_text: str,
+        user_id: int = Depends(get_current_user_id),
+        db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(select(Movie).filter(Movie.id == movie_id))
     movie = result.scalars().first()
@@ -796,12 +792,12 @@ async def get_comments(movie_id: int, db: AsyncSession = Depends(get_db)):
     description="Add a answer for a specific comment",
 )
 async def reply_to_comment(
-    comment_id: int,
-    answer_text: str,
-    background_tasks: BackgroundTasks,
-    user_id: int = Depends(get_current_user_id),
-    db: AsyncSession = Depends(get_db),
-    email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
+        comment_id: int,
+        answer_text: str,
+        background_tasks: BackgroundTasks,
+        user_id: int = Depends(get_current_user_id),
+        db: AsyncSession = Depends(get_db),
+        email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
 ):
     result = await db.execute(select(Comment).filter(Comment.id == comment_id))
     comment = result.scalars().first()
@@ -855,10 +851,10 @@ async def reply_to_comment(
     },
 )
 async def rate_movie(
-    movie_id: int,
-    rating: int = Query(ge=0, le=10),
-    db: AsyncSession = Depends(get_db),
-    user_id: int = Depends(get_current_user_id),
+        movie_id: int,
+        rating: int = Query(ge=0, le=10),
+        db: AsyncSession = Depends(get_db),
+        user_id: int = Depends(get_current_user_id),
 ):
     result = await db.execute(select(Movie).filter(Movie.id == movie_id))
     movie = result.scalars().first()

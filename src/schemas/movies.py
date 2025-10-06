@@ -1,5 +1,6 @@
 from datetime import datetime
 from typing import Optional, List
+from uuid import uuid4
 
 from pydantic import BaseModel, Field, field_validator, ConfigDict
 
@@ -86,16 +87,15 @@ class MovieListItemSchema(BaseModel):
     time: int
     imdb: float
     genres: List[GenreSchema]
-    directors: List[DirectorSchema]
-    stars: List[StarSchema]
+    price: float
 
     model_config = ConfigDict(from_attributes=True)
 
 
 class MovieListResponseSchema(BaseModel):
-    movies: List[MovieListItemSchema]
-    prev_page: Optional[str]
-    next_page: Optional[str]
+    items: List[MovieListItemSchema]
+    prev_page: Optional[str] = None
+    next_page: Optional[str] = None
     total_pages: int
     total_items: int
 
@@ -103,39 +103,39 @@ class MovieListResponseSchema(BaseModel):
 
 
 class MovieCreateSchema(BaseModel):
-    uuid: str | None = None
+    uuid: str = Field(default_factory=lambda: str(uuid4()))
     name: str
     year: int
     time: int
     imdb: float = Field(..., ge=0, le=10)
-    meta_score: float | None = None
-    gross: float | None = None
+    votes: int = 0
+    meta_score: Optional[float] = None
+    gross: Optional[float] = None
     description: str
     price: float = Field(..., ge=0)
-    likes: int
-    dislikes: int
-    genres: list[str]
-    stars: list[str]
-    directors: list[str]
-    certification: str
-    comments: list[CommentSchema] = []
+
+    certification_id: int
+    genre_ids: List[int] = Field(default_factory=list)
+    star_ids: List[int] = Field(default_factory=list)
+    director_ids: List[int] = Field(default_factory=list)
 
     model_config = ConfigDict(from_attributes=True)
 
-    @field_validator("genres", "stars", "directors", mode="before")
-    @classmethod
-    def normalize_list_fields(cls, value: list[str]) -> list[str]:
-        return [item.title() for item in value]
-
 
 class MovieUpdateSchema(BaseModel):
-    name: str | None = None
-    year: int | None = None
-    time: int | None = None
-    imdb: float | None = Field(None, ge=0, le=10)
-    meta_score: float | None = None
-    gross: float | None = None
-    description: str | None = None
-    price: float | None = Field(None, ge=0)
+    name: Optional[str] = None
+    year: Optional[int] = None
+    time: Optional[int] = None
+    imdb: Optional[float] = Field(None, ge=0, le=10)
+    votes: Optional[int] = None
+    meta_score: Optional[float] = None
+    gross: Optional[float] = None
+    description: Optional[str] = None
+    price: Optional[float] = Field(None, ge=0)
+
+    certification_id: Optional[int] = None
+    genre_ids: Optional[List[int]] = None
+    star_ids: Optional[List[int]] = None
+    director_ids: Optional[List[int]] = None
 
     model_config = ConfigDict(from_attributes=True)
