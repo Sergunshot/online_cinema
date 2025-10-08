@@ -13,6 +13,7 @@ RUN apt update && apt install -y \
     netcat-openbsd \
     postgresql-client \
     dos2unix \
+    tree \
     && apt clean
 
 # Install Poetry

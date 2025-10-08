@@ -15,7 +15,7 @@ from database.models import (
     Movie,
     User,
 )
-from config import get_current_user_id
+from config.dependencies import get_current_user_id
 from fastapi import status
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import joinedload
@@ -39,7 +39,7 @@ async def check_user_access(
     Raises HTTPException if access is denied.
     """
     if current_user_id == resource_owner_id:
-        return  # Власник ресурсу має доступ
+        return
 
     result = await db.execute(
         select(User).filter(User.id == current_user_id)
@@ -85,8 +85,10 @@ async def get_orders(
         try:
             query = query.filter(Order.status == OrderStatusEnum(status))
         except ValueError:
-            raise HTTPException(status_code=400, detail=f"Invalid status: '{status}'. Possible values: pending, paid, canceled.")
-
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid status: '{status}'. Possible values: pending, paid, canceled."
+            )
 
     if user_id:
         query = query.filter(Order.user_id == user_id)
@@ -374,7 +376,7 @@ async def cancel_order(
         id=order.id,
         user_id=order.user_id,
         created_at=order.created_at,
-        status=order.status, # type: ignore
+        status=order.status,
         total_amount=order.total_amount,
         items=order_items_response,
     )

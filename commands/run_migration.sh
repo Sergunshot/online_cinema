@@ -1,63 +1,91 @@
-#!/bin/sh
+#!/usr/bin/env sh
+# Robust Alembic migrator for Docker
+# - Only "upgrade head" by default (safe for CI & compose)
+# - Optional autogenerate behind env flag
+# - Optional DB wait via DATABASE_URL/+psql
+set -eu
 
-# SQLAlchemy migrate
-ALEMBIC_CONFIG="/usr/src/alembic/alembic.ini"
-MIGRATIONS_DIR="/usr/src/fastapi/database/migrations/versions"
+log() { printf "%s %s\n" "[migrator]" "$*"; }
 
-echo "Checking for changes before generating a migration..."
+# --- Config ---------------------------------------------------------------
 
-# Ensure the versions folder exists
-if [ ! -d "$MIGRATIONS_DIR" ]; then
-    echo "Migrations folder does not exist. Creating it..."
-    mkdir -p "$MIGRATIONS_DIR"
+APP_DIR="${APP_DIR:-/usr/src/fastapi}"
+
+ALEMBIC_CFG_OPT=""
+if [ -n "${ALEMBIC_CONFIG:-}" ]; then
+  ALEMBIC_CFG_OPT="-c ${ALEMBIC_CONFIG}"
 fi
 
-# Check if the alembic_version table exists in the database
-export PGPASSWORD="$POSTGRES_PASSWORD"
+AUTO_GENERATE_MIGRATIONS="${AUTO_GENERATE_MIGRATIONS:-0}"
+MIGRATION_MSG="${MIGRATION_MSG:-autogen}"
 
-if ! psql -h "$POSTGRES_HOST" -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "\dt" | grep -q "alembic_version"; then
-    echo "Alembic version table not found. Applying all migrations..."
+WAIT_FOR_DB="${WAIT_FOR_DB:-0}"
 
-    # Check if there are existing migration files
-    if [ -z "$(ls -A "$MIGRATIONS_DIR")" ]; then
-        echo "No migration files found. Generating initial migration..."
-        migrations -c $ALEMBIC_CONFIG revision --autogenerate -m "initial migration"
+PSQL_TIMEOUT_SEC="${PSQL_TIMEOUT_SEC:-60}"
+
+# --- Helpers --------------------------------------------------------------
+
+wait_for_db() {
+  if [ "${WAIT_FOR_DB}" != "1" ]; then
+    return 0
+  fi
+
+  if ! command -v psql >/dev/null 2>&1; then
+    log "psql not found; skipping DB wait."
+    return 0
+  fi
+
+  log "Waiting for DB up to ${PSQL_TIMEOUT_SEC}s..."
+  end=$(( $(date +%s) + PSQL_TIMEOUT_SEC ))
+  while true; do
+    if [ -n "${DATABASE_URL:-}" ]; then
+      if PGPASSWORD="${PGPASSWORD:-}" psql "${DATABASE_URL}" -c "select 1" >/dev/null 2>&1; then
+        log "DB is ready (via DATABASE_URL)."
+        break
+      fi
+    else
+      if PGPASSWORD="${PGPASSWORD:-}" psql -h "${PGHOST:-localhost}" -p "${PGPORT:-5432}" -U "${PGUSER:-postgres}" -d "${PGDATABASE:-postgres}" -c "select 1" >/dev/null 2>&1; then
+        log "DB is ready (via PG* env)."
+        break
+      fi
     fi
 
-    echo "Applying all migrations..."
-    migrations -c $ALEMBIC_CONFIG upgrade head
+    if [ "$(date +%s)" -ge "${end}" ]; then
+      log "DB did not become ready in time."
+      return 1
+    fi
+    sleep 1
+  done
+}
 
-    # Run database saver script only if alembic_version table was just created
-    echo "Running database saver script..."
-    python -m database.populate
-    echo "Database saver script completed."
+upgrade_head() {
+  log "Upgrading DB to head..."
+  alembic ${ALEMBIC_CFG_OPT} upgrade head
+  log "Upgrade completed."
+}
 
-    exit 0
+maybe_autogenerate() {
+  if [ "${AUTO_GENERATE_MIGRATIONS}" = "1" ]; then
+    log "Autogenerate revision..."
+    alembic ${ALEMBIC_CFG_OPT} revision --autogenerate -m "${MIGRATION_MSG}"
+    log "Applying newly generated revision..."
+    alembic ${ALEMBIC_CFG_OPT} upgrade head
+    log "Autogenerate done."
+  else
+    log "AUTO_GENERATE_MIGRATIONS=0 — skipping autogenerate."
+  fi
+}
+
+# --- Run ------------------------------------------------------------------
+
+cd "${APP_DIR}"
+log "Working dir: $(pwd)"
+if [ -n "${ALEMBIC_CFG_OPT}" ]; then
+  log "Using alembic config: ${ALEMBIC_CONFIG}"
 fi
 
-# Generate temporary migration
-if ! migrations -c $ALEMBIC_CONFIG revision --autogenerate -m "temp_migration"; then
-    echo "Error generating migration. Exiting."
-    exit 1
-fi
+wait_for_db
+upgrade_head
+maybe_autogenerate
 
-# Find the last created migration file
-LAST_MIGRATION=$(find "$MIGRATIONS_DIR" -type f -printf '%T+ %p\n' | sort | tail -n 1 | awk '{print $2}')
-
-# Show migration content
-echo "Generated migration content:"
-cat "$LAST_MIGRATION"
-
-# Check if the migration contains real changes
-if grep -qE '^\s*pass\s*$' "$LAST_MIGRATION"; then
-    echo "No changes detected. Deleting temporary migration."
-    rm "$LAST_MIGRATION"
-else
-    echo "Changes detected. Applying migration."
-    migrations -c $ALEMBIC_CONFIG upgrade head
-fi
-
-# Run database saver script
-echo "Running database saver script..."
-python -m database.populate
-echo "Database saver script completed."
+log "All done."

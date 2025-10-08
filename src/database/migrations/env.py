@@ -1,14 +1,10 @@
-import asyncio
 from logging.config import fileConfig
 
-from sqlalchemy import engine_from_config
-from sqlalchemy import pool
-from sqlalchemy.ext.asyncio import async_engine_from_config
-
-from src.database.models.base import Base
-from src.database.database import engine, DATABASE_URL
-
 from alembic import context
+
+from database.models import movies, accounts, cart, payments, orders  # noqa: F401
+from database import Base
+from database.session_postgresql import sync_postgresql_engine
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -25,6 +21,7 @@ if config.config_file_name is not None:
 # target_metadata = mymodel.Base.metadata
 target_metadata = Base.metadata
 
+
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
 # my_important_option = config.get_main_option("my_important_option")
@@ -32,7 +29,7 @@ target_metadata = Base.metadata
 
 
 def run_migrations_offline() -> None:
-    """Run versions in 'offline' mode.
+    """Run migrations in 'offline' mode.
 
     This configures the context with just a URL
     and not an Engine, though an Engine is acceptable
@@ -43,97 +40,42 @@ def run_migrations_offline() -> None:
     script output.
 
     """
+    connectable = sync_postgresql_engine
 
-    ## For sqlite
-    context.configure(
-        url=DATABASE_URL,
-        target_metadata=target_metadata,
-        literal_binds=True,
-        dialect_opts={"paramstyle": "named"},
-        compare_type=True,
-        compare_server_default=True,
-    )
-    with context.begin_transaction():
-        context.run_migrations()
+    with connectable.connect() as connection:
+        context.configure(
+            connection=connection,
+            target_metadata=target_metadata,
+            compare_type=True,
+            compare_server_default=True
+        )
 
-    ## For postgresql
-    # connectable = engine
-    #
-    # with connectable.connect() as connection:
-    #     context.configure(
-    #         connection=connection,
-    #         target_metadata=target_metadata,
-    #         compare_type=True,
-    #         compare_server_default=True,
-    #     )
-    #
-    #     with context.begin_transaction():
-    #         context.run_migrations()
+        with context.begin_transaction():
+            context.run_migrations()
 
 
-def do_run_migrations(connection):
-    """Helper function to run versions with sync connection."""
-    context.configure(
-        connection=connection,
-        target_metadata=target_metadata,
-        compare_type=True,
-        compare_server_default=True,
-    )
+def run_migrations_online() -> None:
+    """Run migrations in 'online' mode.
 
-    with context.begin_transaction():
-        context.run_migrations()
-
-
-## For sqlite
-async def run_migrations_online():
-    """Run versions in 'online' mode.
     In this scenario we need to create an Engine
     and associate a connection with the context.
+
     """
-    configuration = config.get_section(config.config_ini_section)
-    configuration["sqlalchemy.url"] = DATABASE_URL
+    connectable = sync_postgresql_engine
 
-    connectable = async_engine_from_config(
-        configuration,
-        prefix="sqlalchemy.",
-        poolclass=pool.NullPool,
-    )
+    with connectable.connect() as connection:
+        context.configure(
+            connection=connection,
+            target_metadata=target_metadata,
+            compare_type=True,
+            compare_server_default=True
+        )
 
-    async with connectable.connect() as connection:
-        await connection.run_sync(do_run_migrations)
+        with context.begin_transaction():
+            context.run_migrations()
 
-    await connectable.dispose()
 
 if context.is_offline_mode():
     run_migrations_offline()
 else:
-    asyncio.run(run_migrations_online())
-
-
-## For postgresql
-# def run_migrations_online() -> None:
-#     """Run versions in 'online' mode.
-#
-#     In this scenario we need to create an Engine
-#     and associate a connection with the context.
-#
-#     """
-#
-#     connectable = engine
-#
-#     with connectable.connect() as connection:
-#         context.configure(
-#             connection=connection,
-#             target_metadata=target_metadata,
-#             compare_type=True,
-#             compare_server_default=True,
-#         )
-#
-#         with context.begin_transaction():
-#             context.run_migrations()
-#
-#
-# if context.is_offline_mode():
-#     run_migrations_offline()
-# else:
-#     run_migrations_online()
+    run_migrations_online()

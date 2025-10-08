@@ -2,7 +2,7 @@ from typing import Literal
 
 from pydantic import BaseModel, EmailStr, field_validator, ConfigDict
 
-from database import accounts_validators
+from database.validators import accounts as accounts_validators
 
 
 class BaseEmailPasswordSchema(BaseModel):
@@ -23,7 +23,7 @@ class BaseEmailPasswordSchema(BaseModel):
 
 
 class UserRegistrationRequestSchema(BaseEmailPasswordSchema):
-    group: Literal["user", "moderator", "admin"]
+    group: Literal["user", "moderator", "admin"] | None = None
 
 
 class PasswordResetRequestSchema(BaseModel):
